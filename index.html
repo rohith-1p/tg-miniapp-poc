@@ -19,6 +19,9 @@
   button { cursor: pointer; }
   .hint { color: var(--hint); font-size: 13px; }
   [hidden] { display: none !important; }
+  .back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 12px; padding: 8px 14px 8px 10px; border: 0; border-radius: 20px;
+          background: var(--card); font-weight: 600; font-size: 14px; }
+  .back:active { transform: scale(.95); }
 
   /* hero */
   .hero { position: relative; overflow: hidden; padding: 18px; border-radius: 22px; color: #fff; margin-bottom: 14px;
@@ -119,6 +122,7 @@
 
 <!-- 2. checkout: MainButton always does the next missing step -->
 <main id="checkout" hidden>
+  <button class="back">← Back to medicines</button>
   <div class="card" style="--i:0"><h4>Your items</h4><div id="items"></div></div>
   <div class="card" style="--i:1" id="rxCard"><h4>Prescription <span id="rxState"></span></h4>
     <div class="hint" id="rxText">Your cart has a prescription medicine. Scan the QR on your doctor's e-prescription.</div>
@@ -135,6 +139,7 @@
 
 <!-- 3. waiting for GPay -->
 <main id="paying" class="center" hidden>
+  <button class="back" style="position:absolute;left:16px">← Back</button>
   <div class="pulse">G</div>
   <div class="big" id="payAmt"></div>
   <p>Complete the payment in <b>GPay</b>,<br>then come back here.</p>
@@ -420,7 +425,9 @@ function updateButtons() {
 }
 tg.MainButton.onClick(() => mainAction?.());
 tg.SecondaryButton?.onClick(() => view === "paying" && pay());
-tg.BackButton.onClick(() => go(view === "paying" ? "checkout" : "home"));
+const back = () => { tg.HapticFeedback.impactOccurred("light"); go(view === "paying" ? "checkout" : "home"); };
+tg.BackButton.onClick(back);
+for (const b of document.querySelectorAll(".back")) b.onclick = back;
 tg.onEvent("activated", () => view === "paying" && toast("Welcome back! Tap “I've paid” once GPay confirms."));
 
 // --- about (Settings button): which Telegram feature powers which step ---
