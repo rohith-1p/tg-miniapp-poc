@@ -26,6 +26,12 @@ def summarize(cart):
     return "✅ Order received!\n\n" + "\n".join(lines) + f"\n\nTotal: ₹{total}"
 
 
+def log(event):
+    print(json.dumps(event, ensure_ascii=False), flush=True)
+    with open(os.path.join(HERE, "events.jsonl"), "a") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
 def call(method, **params):
     req = urllib.request.Request(
         f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/{method}",
@@ -35,13 +41,19 @@ def call(method, **params):
 
 def handle(msg):
     chat = msg["chat"]["id"]
+    u = msg.get("from", {})
+    event = {"ts": msg["date"], "user_id": u.get("id"), "name": u.get("first_name"),
+             "username": u.get("username"), "lang": u.get("language_code")}
     if "web_app_data" in msg:
         try:
             cart = json.loads(msg["web_app_data"]["data"])
         except ValueError:
             cart = {}
-        call("sendMessage", chat_id=chat, text=summarize(cart if isinstance(cart, dict) else {}))
+        reply = summarize(cart if isinstance(cart, dict) else {})
+        log({**event, "action": "order", "cart": cart, "reply": reply})
+        call("sendMessage", chat_id=chat, text=reply)
     else:
+        log({**event, "action": "message", "text": msg.get("text")})
         call("sendMessage", chat_id=chat, text="Tap the button below to open the Mini Café ☕",
              reply_markup={"keyboard": [[{"text": "🛒 Open Mini Café",
                                           "web_app": {"url": os.environ["WEBAPP_URL"]}}]],
