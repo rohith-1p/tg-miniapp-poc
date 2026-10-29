@@ -30,7 +30,7 @@
 </div>
 <script>
 // payee is fixed here so this page can't be reused to send money anywhere else
-const UPI_ID = "REPLACE_WITH_UPI_ID@okaxis", NAME = "MediQuick";
+const UPI_ID = "6302533515@fam", NAME = "MediQuick";
 const q = new URLSearchParams(location.search);
 const am = /^\d{1,5}(\.\d{1,2})?$/.test(q.get("am") || "") ? q.get("am") : "";
 const tn = (q.get("tn") || "MediQuick order").replace(/[^\w #-]/g, "").slice(0, 40);
