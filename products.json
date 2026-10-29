@@ -1,0 +1,6 @@
+[
+  {"id": "chai", "name": "Masala Chai", "emoji": "☕", "price": 40},
+  {"id": "samosa", "name": "Samosa", "emoji": "🥟", "price": 25},
+  {"id": "dosa", "name": "Masala Dosa", "emoji": "🫓", "price": 90},
+  {"id": "lassi", "name": "Mango Lassi", "emoji": "🥭", "price": 60}
+]
