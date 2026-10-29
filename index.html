@@ -52,6 +52,7 @@
   .step { display: flex; align-items: center; gap: 8px; }
   .step button { width: 32px; height: 32px; border: 0; border-radius: 50%; font-size: 18px; background: var(--btn); color: var(--btn-fg); transition: transform .1s; }
   .step button.minus { background: var(--card); color: var(--fg); }
+  .card .step button.minus { background: var(--bg); }
   .step span { min-width: 16px; text-align: center; font-weight: 600; }
   .step .add { width: auto; height: 32px; font-size: 14px; border: 0; border-radius: 16px; padding: 0 18px; font-weight: 600; background: var(--btn); color: var(--btn-fg); }
   .row.bump .icon { animation: bump .35s; }
@@ -62,6 +63,20 @@
   .card { background: var(--card); border-radius: 18px; padding: 14px; margin-bottom: 10px; animation: pop .35s both; animation-delay: calc(var(--i) * 60ms); }
   .card h4 { margin: 0 0 8px; font-size: 13px; color: var(--hint); text-transform: uppercase; letter-spacing: .05em; display: flex; justify-content: space-between; }
   .done { color: var(--ok); } .todo { color: var(--warn); }
+  .progress { margin-bottom: 12px; } .ptext { font-size: 14px; margin-bottom: 6px; } .ptext span { color: var(--hint); }
+  .pbar { height: 6px; border-radius: 3px; background: var(--card); overflow: hidden; }
+  .pbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: linear-gradient(90deg, var(--ok), #1098ad); transition: width .5s cubic-bezier(.3,1.2,.5,1); }
+  .card h4 span { display: flex; align-items: center; gap: 8px; } .card h4 > span:last-child { color: var(--ok); }
+  .num { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px;
+         background: var(--bg); color: var(--hint); letter-spacing: 0; }
+  .sc { transition: opacity .3s, box-shadow .3s, transform .3s; border: 2px solid transparent; }
+  .sc.is-cur { border-color: var(--btn); box-shadow: 0 8px 24px color-mix(in srgb, var(--btn) 25%, transparent); }
+  .sc.is-cur .num { background: var(--btn); color: var(--btn-fg); }
+  .sc.is-done .num { background: var(--ok); color: #fff; }
+  .sc.is-done .cta, .sc.is-later .cta, .sc.is-later .hint, .sc.is-later .map { display: none; }
+  .sc.is-later { opacity: .45; padding-bottom: 6px; } .sc.is-later h4 { margin: 0; }
+  .sc.is-done .hint { color: var(--fg); }
+  .build { text-align: center; color: var(--hint); font-size: 11px; opacity: .6; margin-top: 18px; }
   .line { display: flex; justify-content: space-between; padding: 3px 0; }
   .line.total { font-weight: 700; font-size: 17px; border-top: 1px dashed var(--hint); margin-top: 6px; padding-top: 8px; }
   .cta { width: 100%; margin-top: 4px; padding: 11px; border: 0; border-radius: 12px; background: var(--bg); font-weight: 600; }
@@ -123,18 +138,20 @@
 <!-- 2. checkout: MainButton always does the next missing step -->
 <main id="checkout" hidden>
   <button class="back">← Back to medicines</button>
-  <div class="card" style="--i:0"><h4>Your items</h4><div id="items"></div></div>
-  <div class="card" style="--i:1" id="rxCard"><h4>Prescription <span id="rxState"></span></h4>
+  <div class="progress"><div class="ptext"><b id="pStep"></b><span id="pName"></span></div><div class="pbar"><i id="pBar"></i></div></div>
+  <div class="card" style="--i:0"><h4>Your order</h4><div id="items"></div><div id="bill"></div></div>
+  <div class="card sc" style="--i:1" id="rxCard"><h4><span><em class="num"></em>Prescription</span><span id="rxState"></span></h4>
     <div class="hint" id="rxText">Your cart has a prescription medicine. Scan the QR on your doctor's e-prescription.</div>
     <button class="cta" id="rxBtn">📷 Scan prescription</button></div>
-  <div class="card" style="--i:2"><h4>Deliver to <span id="locState"></span></h4>
+  <div class="card sc" style="--i:2" id="locCard"><h4><span><em class="num"></em>Deliver to</span><span id="locState"></span></h4>
     <div id="locText" class="hint">We'll find the nearest MediQuick store.</div>
     <div class="map" id="miniMap" hidden><div class="path"></div><span class="pin" style="left:34px">🏪</span><span class="pin" style="left:calc(100% - 34px)">🏠</span></div>
     <button class="cta" id="locBtn">📍 Use my current location</button></div>
-  <div class="card" style="--i:3"><h4>Contact <span id="phoneState"></span></h4>
+  <div class="card sc" style="--i:3" id="phoneCard"><h4><span><em class="num"></em>Contact</span><span id="phoneState"></span></h4>
     <div id="phoneText" class="hint">The rider calls this number on arrival.</div>
     <button class="cta" id="phoneBtn">📇 Share my Telegram number</button></div>
-  <div class="card" style="--i:4"><h4>Bill</h4><div id="bill"></div></div>
+  <div class="card sc" style="--i:4" id="payCard"><h4><span><em class="num"></em>Pay</span><span></span></h4>
+    <div class="hint">GPay opens with the amount filled in. Face ID confirms it first.</div></div>
 </main>
 
 <!-- 3. waiting for GPay -->
@@ -156,6 +173,7 @@
   <button class="action" id="homeScreenBtn" hidden style="width:100%"><b style="background:linear-gradient(135deg,#0ca678,#1098ad)">🏠</b><span>Add MediQuick to home screen<small>One tap to reorder next time</small></span></button>
 </main>
 
+<div class="build" id="build"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -218,7 +236,7 @@ if (user) {
 const cloud = has("6.9", tg.CloudStorage) ? tg.CloudStorage : null;
 let products = [], cart = {}, rx = null, loc = null, phone = null, view = "home", lastOrder = null;
 const byId = id => products.find(p => p.id === id);
-const count = () => Object.values(cart).reduce((a, b) => a + b, 0);
+const count = () => Object.entries(cart).reduce((a, [id, n]) => a + (byId(id) ? n : 0), 0);
 const subtotal = () => Object.entries(cart).reduce((s, [id, n]) => s + (byId(id)?.price || 0) * n, 0);
 const fee = () => subtotal() && subtotal() < FREE_DELIVERY_FROM ? DELIVERY_FEE : 0;
 const total = () => subtotal() + fee();
@@ -339,32 +357,43 @@ $("phoneBtn").onclick = sharePhone;
 
 // --- checkout ---
 function renderCheckout() {
-  $("items").replaceChildren(...Object.keys(cart).map(id => {
+  $("items").replaceChildren(...Object.keys(cart).filter(byId).map(id => {
     const p = byId(id), d = document.createElement("div");
     d.className = "line";
     d.innerHTML = `<span>${p.emoji} ${p.name}</span><span class="step"></span>`;
     d.querySelector(".step").append(...stepper(id));
     return d;
   }));
-  $("rxCard").hidden = !needsRx();
-  $("rxState").className = rx ? "done" : "todo";
-  $("rxState").textContent = rx ? "✓ attached" : "required";
-  if (rx) $("rxText").textContent = "Prescription " + rx + " attached. Our pharmacist will verify it before packing.";
-  $("rxBtn").hidden = !!rx;
-  $("locState").className = loc ? "done" : "todo";
-  $("locState").textContent = loc ? `✓ ${loc.eta} min` : "required";
-  if (loc) $("locText").textContent = `${loc.store} · ${loc.km.toFixed(1)} km · arrives in ~${loc.eta} min`;
-  $("miniMap").hidden = !loc;
-  $("locBtn").hidden = !!loc;
-  $("phoneState").className = phone ? "done" : "todo";
-  $("phoneState").textContent = phone ? "✓" : "required";
-  if (phone) $("phoneText").textContent = "📞 " + phone;
-  $("phoneBtn").hidden = !!phone;
-  $("bill").innerHTML = `<div class="line"><span>Items (${count()})</span><span>${rupees(subtotal())}</span></div>
-    <div class="line"><span>Delivery</span><span>${fee() ? rupees(fee()) : '<span class="done">FREE</span>'}</span></div>
+  $("bill").innerHTML = `<div class="line" style="margin-top:6px"><span class="hint">Delivery</span><span>${fee() ? rupees(fee()) : '<span class="done">FREE</span>'}</span></div>
     ${fee() ? `<div class="hint">Add ${rupees(FREE_DELIVERY_FROM - subtotal())} more for free delivery</div>` : ""}
     <div class="line total"><span>To pay</span><span>${rupees(total())}</span></div>`;
+  if (rx) $("rxText").textContent = "Prescription " + rx + " attached. Our pharmacist will verify it before packing.";
+  if (loc) $("locText").textContent = `${loc.store} · ${loc.km.toFixed(1)} km · arrives in ~${loc.eta} min`;
+  if (phone) $("phoneText").textContent = "📞 " + phone;
+  $("miniMap").hidden = !loc;
+  $("rxState").textContent = rx ? "✓ attached" : "";
+  $("locState").textContent = loc ? `✓ ${loc.eta} min` : "";
+  $("phoneState").textContent = phone ? "✓ added" : "";
+
+  // guided steps: done ones collapse, the current one is highlighted, later ones wait
+  const steps = [needsRx() && ["rxCard", !!rx, "Prescription"], ["locCard", !!loc, "Delivery"],
+                 ["phoneCard", !!phone, "Contact"], ["payCard", false, "Pay"]].filter(Boolean);
+  const cur = steps.findIndex(([, done]) => !done);
+  $("rxCard").hidden = !needsRx();
+  steps.forEach(([id, done], i) => {
+    const c = $(id);
+    c.classList.toggle("is-done", done);
+    c.classList.toggle("is-cur", i === cur);
+    c.classList.toggle("is-later", i > cur);
+    c.querySelector(".num").textContent = done ? "✓" : i + 1;
+  });
+  $("pStep").textContent = `Step ${cur + 1} of ${steps.length}`;
+  $("pName").textContent = cur === steps.length - 1 ? " · Ready to pay 🎉" : " · " + steps[cur][2];
+  $("pBar").style.width = (cur / (steps.length - 1) * 100) + "%";
+  const curCard = $(steps[cur][0]);
+  if (curCard !== lastCur) { lastCur = curCard; setTimeout(() => curCard.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "center" }), 250); }
 }
+let lastCur = null;
 function nextStep() {
   if (needsRx() && !rx) return ["📷 Scan prescription to continue", scanRx];
   if (!loc) return ["📍 Set delivery location", locate];
@@ -470,6 +499,7 @@ function startTracking() {
 $("homeScreenBtn").onclick = () => tg.addToHomeScreen();
 
 // --- boot ---
+$("build").textContent = "build " + (q.get("v") || "dev");
 fetch("products.json", { cache: "no-cache" }).then(r => r.json()).then(p => {
   products = p;
   if (q.has("track")) { go("track"); return startTracking(); }
