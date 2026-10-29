@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediQuick Pay</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root { --bg: #f4f6fb; --card: #fff; --fg: #111; --hint: #6b7280; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0f1115; --card: #1a1d24; --fg: #f3f4f6; --hint: #9ca3af; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; box-sizing: border-box;
+         font: 16px system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+  .card { width: 100%; max-width: 360px; background: var(--card); border-radius: 24px; padding: 24px; text-align: center; box-shadow: 0 10px 40px #0002; }
+  .logo { font-weight: 700; } .amt { font-size: 44px; font-weight: 800; margin: 10px 0 2px; }
+  .hint { color: var(--hint); font-size: 13px; }
+  a.btn { display: block; margin-top: 18px; padding: 15px; border-radius: 14px; text-decoration: none; font-weight: 700;
+          background: #1a73e8; color: #fff; } a.alt { background: none; color: #1a73e8; margin-top: 6px; }
+  #qr { display: inline-block; margin-top: 18px; padding: 10px; background: #fff; border-radius: 12px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">💊 MediQuick</div>
+  <div class="amt" id="amt"></div>
+  <div class="hint" id="note"></div>
+  <a class="btn" id="gpay">Pay with GPay</a>
+  <a class="btn alt" id="upi">Use another UPI app</a>
+  <div id="qr"></div>
+  <p class="hint">On a laptop? Scan this with any UPI app.<br>After paying, go back to Telegram and tap <b>I've paid</b>.</p>
+</div>
+<script>
+// payee is fixed here so this page can't be reused to send money anywhere else
+const UPI_ID = "REPLACE_WITH_UPI_ID@okaxis", NAME = "MediQuick";
+const q = new URLSearchParams(location.search);
+const am = /^\d{1,5}(\.\d{1,2})?$/.test(q.get("am") || "") ? q.get("am") : "";
+const tn = (q.get("tn") || "MediQuick order").replace(/[^\w #-]/g, "").slice(0, 40);
+const params = `pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(NAME)}${am && "&am=" + am}&cu=INR&tn=${encodeURIComponent(tn)}`;
+
+document.getElementById("amt").textContent = am ? "₹" + am : "₹ —";
+document.getElementById("note").textContent = tn;
+const ua = navigator.userAgent;
+document.getElementById("gpay").href =
+  /Android/i.test(ua) ? `intent://upi/pay?${params}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`
+  : /iPhone|iPad/i.test(ua) ? `gpay://upi/pay?${params}` : `upi://pay?${params}`;
+document.getElementById("upi").href = `upi://pay?${params}`;
+new QRCode(document.getElementById("qr"), { text: `upi://pay?${params}`, width: 170, height: 170 });
+</script>
+</body>
+</html>

@@ -1,16 +1,24 @@
-"""Telegram Mini App POC bot (long polling, stdlib only). The page is static on GitHub Pages.
+"""MediQuick Telegram Mini App bot (long polling, stdlib only). The page is static on GitHub Pages.
 
   BOT_TOKEN=123:abc WEBAPP_URL=https://rohith-1p.github.io/tg-miniapp-poc/ python3 bot.py
   python3 bot.py test   # self-check
 """
+import fcntl
 import json
 import os
+import random
 import sys
+import threading
+import time
 import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PRODUCTS = {p["id"]: p for p in json.load(open(os.path.join(HERE, "products.json")))}
+FREE_DELIVERY_FROM, DELIVERY_FEE = 199, 25  # keep in sync with index.html
+# seconds after the order: keep in sync with STEPS in index.html (demo time, compressed)
+STATUS = [(15, "📦 Order {id} packed at {store}"), (35, "🛵 Order {id} is out for delivery"),
+          (75, "✅ Order {id} delivered. Get well soon! 💚")]
 
 
 def summarize(cart):
@@ -23,9 +31,10 @@ def summarize(cart):
         lines.append(f"{p['emoji']} {p['name']} × {qty} = ₹{p['price'] * qty}")
         items[pid] = qty
         total += p["price"] * qty
-    if not lines:
-        return "Your cart was empty 🤷", items, total
-    return "✅ Order received!\n\n" + "\n".join(lines) + f"\n\nTotal: ₹{total}", items, total
+    if total and total < FREE_DELIVERY_FROM:
+        lines.append(f"🛵 Delivery = ₹{DELIVERY_FEE}")
+        total += DELIVERY_FEE
+    return lines, items, total
 
 
 def log(event):
@@ -41,7 +50,29 @@ def call(method, **params):
     return json.load(urllib.request.urlopen(req, timeout=60))["result"]
 
 
-APP_URL = None  # WEBAPP_URL + ?invoice=<Stars invoice link>, built once at startup
+def later(delay, **params):
+    t = threading.Timer(delay, lambda: call("sendMessage", **params))
+    t.daemon = True
+    t.start()
+
+
+def order(chat, event, data):
+    lines, items, total = summarize(data.get("items") if isinstance(data.get("items"), dict) else {})
+    if not items:
+        return call("sendMessage", chat_id=chat, text="Your cart was empty 🤷")
+    oid = f"#MQ{random.randint(1000, 9999)}"
+    store = str(data.get("store") or "MediQuick")[:60]
+    log({**event, "action": "order", "order_id": oid, "items": items, "total": total, "pay": "gpay",
+         "phone": data.get("phone"), "lat": data.get("lat"), "lon": data.get("lon"), "store": store,
+         "rx": bool(data.get("rx"))})
+    track = f"{os.environ['WEBAPP_URL']}?track={oid[1:]}&t={int(time.time())}&store={urllib.parse.quote(store)}"
+    call("sendMessage", chat_id=chat,
+         text=f"🧾 Order {oid} confirmed\n\n" + "\n".join(lines) + f"\n\nTotal: ₹{total}\n"
+              "💳 Paid via GPay (UPI) · verification pending\n"
+              + ("📄 Prescription attached\n" if data.get("rx") else "") + f"🏪 {store}",
+         reply_markup={"inline_keyboard": [[{"text": "📍 Track order live", "web_app": {"url": track}}]]})
+    for delay, text in STATUS:
+        later(delay, chat_id=chat, text=text.format(id=oid, store=store))
 
 
 def handle(msg):
@@ -51,67 +82,47 @@ def handle(msg):
              "username": u.get("username"), "lang": u.get("language_code")}
     if "web_app_data" in msg:
         try:
-            cart = json.loads(msg["web_app_data"]["data"])
+            data = json.loads(msg["web_app_data"]["data"])
         except ValueError:
-            cart = {}
-        reply, items, total = summarize(cart if isinstance(cart, dict) else {})
-        log({**event, "action": "order", "cart": cart, "items": items, "total": total})
-        call("sendMessage", chat_id=chat, text=reply)
-    elif "successful_payment" in msg:
-        sp = msg["successful_payment"]
-        try:  # demo: give the Star straight back
-            refunded = call("refundStarPayment", user_id=u["id"],
-                            telegram_payment_charge_id=sp["telegram_payment_charge_id"])
-        except Exception as e:
-            print("refund failed:", e)
-            refunded = False
-        log({**event, "action": "payment", "stars": sp["total_amount"],
-             "charge_id": sp["telegram_payment_charge_id"], "refunded": bool(refunded)})
-        call("sendMessage", chat_id=chat,
-             text="⭐ Payment received!" + (" Refunded, since this is a demo." if refunded else ""))
+            data = {}
+        order(chat, event, data if isinstance(data, dict) else {})
     elif "contact" in msg:
         log({**event, "action": "contact", "phone": msg["contact"].get("phone_number")})
-        call("sendMessage", chat_id=chat, text="📇 Got your contact, thanks!")
-    elif "location" in msg:
-        loc = msg["location"]
-        log({**event, "action": "location", "lat": loc["latitude"], "lon": loc["longitude"]})
-        call("sendMessage", chat_id=chat, text=f"📍 Got it: {loc['latitude']:.4f}, {loc['longitude']:.4f}")
     else:
         log({**event, "action": "message", "text": msg.get("text")})
-        call("sendMessage", chat_id=chat, text="Tap the button below to open the Mini Café ☕",
-             reply_markup={"keyboard": [[{"text": "🛒 Open Mini Café", "web_app": {"url": APP_URL}}],
-                                        [{"text": "📍 Share location", "request_location": True}]],
+        call("sendMessage", chat_id=chat,
+             text="💊 MediQuick: medicines delivered in minutes.\nTap below to order.",
+             reply_markup={"keyboard": [[{"text": "💊 Order medicines", "web_app": {"url": os.environ["WEBAPP_URL"]}}]],
                            "resize_keyboard": True})
 
 
 def main():
-    global APP_URL
-    APP_URL = os.environ["WEBAPP_URL"]
+    # one poller per token, or Telegram returns 409 and hands the same update to several copies
+    lock = open(os.path.join(HERE, ".bot.lock"), "w")
     try:
-        link = call("createInvoiceLink", title="Mini Café tip", description="Demo payment, refunded automatically",
-                    payload="demo-tip", currency="XTR", prices=[{"label": "Tip", "amount": 1}])
-        APP_URL += "?invoice=" + urllib.parse.quote(link, safe="")
-    except Exception as e:
-        print("no Stars invoice:", e)
-    print("bot polling…", APP_URL)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit("bot.py is already running")
+    print("bot polling…")
     offset = 0
     while True:
         try:
             for u in call("getUpdates", offset=offset, timeout=50):
                 offset = u["update_id"] + 1
-                if "pre_checkout_query" in u:  # must be answered within 10 s or checkout fails
-                    call("answerPreCheckoutQuery", pre_checkout_query_id=u["pre_checkout_query"]["id"], ok=True)
-                elif "message" in u:
+                if "message" in u:
                     handle(u["message"])
         except Exception as e:  # ponytail: log-and-retry loop, no backoff; fine for a demo
             print("error:", e)
+            time.sleep(1)
 
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["test"]:
-        text, items, total = summarize({"chai": 2, "dosa": 1, "hack": 5})
-        assert text.endswith("Total: ₹170") and items == {"chai": 2, "dosa": 1} and total == 170
-        assert summarize({"hack": 5, "chai": -3, "samosa": "9"}) == ("Your cart was empty 🤷", {}, 0)
+        lines, items, total = summarize({"dolo650": 2, "thermo": 1, "hack": 5})
+        assert items == {"dolo650": 2, "thermo": 1} and total == 315 and len(lines) == 2
+        lines, items, total = summarize({"vitc": 1})
+        assert total == 25 + DELIVERY_FEE and lines[-1].startswith("🛵")
+        assert summarize({"hack": 5, "ors": -3, "bandaid": "9"}) == ([], {}, 0)
         print("ok")
     else:
         main()

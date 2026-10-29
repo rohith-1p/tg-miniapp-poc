@@ -1,6 +1,10 @@
 [
-  {"id": "chai", "name": "Masala Chai", "emoji": "☕", "price": 40},
-  {"id": "samosa", "name": "Samosa", "emoji": "🥟", "price": 25},
-  {"id": "dosa", "name": "Masala Dosa", "emoji": "🫓", "price": 90},
-  {"id": "lassi", "name": "Mango Lassi", "emoji": "🥭", "price": 60}
+  {"id": "dolo650", "name": "Dolo 650", "pack": "Strip of 15 tablets", "emoji": "💊", "price": 33},
+  {"id": "cetirizine", "name": "Cetirizine 10mg", "pack": "Strip of 10 tablets", "emoji": "🤧", "price": 22},
+  {"id": "ors", "name": "Electral ORS", "pack": "Pack of 5 sachets", "emoji": "🧃", "price": 110},
+  {"id": "vitc", "name": "Limcee Vitamin C", "pack": "Strip of 15 chewables", "emoji": "🍊", "price": 25},
+  {"id": "digene", "name": "Digene Gel", "pack": "200 ml bottle", "emoji": "🧴", "price": 145},
+  {"id": "bandaid", "name": "Band-Aid", "pack": "Box of 20", "emoji": "🩹", "price": 60},
+  {"id": "thermo", "name": "Digital Thermometer", "pack": "1 unit", "emoji": "🌡️", "price": 249},
+  {"id": "azithral", "name": "Azithral 500", "pack": "Strip of 5 tablets", "emoji": "💊", "price": 120, "rx": true}
 ]
