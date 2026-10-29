@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mini Café Admin</title>
+<title>MediQuick Ops</title>
 <style>
-:root{--bg:#f4f1ec;--card:#fffdf9;--line:#e6dfd4;--ink:#231d16;--mute:#857a6c;--accent:#c2611f;--accent2:#e9a23b;--ok:#2f9e5b;--hl:#fff1d6}
-@media (prefers-color-scheme:dark){:root{--bg:#14110e;--card:#1d1915;--line:#2f2922;--ink:#f2ebe1;--mute:#9d9183;--accent:#f08a3e;--accent2:#f4c06a;--ok:#4cc77f;--hl:#3a2a17}}
+:root{--bg:#f2f6f7;--card:#fff;--line:#dfe7ea;--ink:#13222a;--mute:#6b7d86;--accent:#0ca678;--accent2:#1098ad;--ok:#2f9e5b;--warn:#f59f00;--hl:#d9f7ec}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1416;--card:#162024;--line:#24343a;--ink:#e8f1f3;--mute:#8aa0a8;--accent:#20c997;--accent2:#22b8cf;--ok:#4cc77f;--warn:#fab005;--hl:#123a30}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 main{max-width:1180px;margin:0 auto;padding:20px 16px 40px}
@@ -47,17 +47,22 @@ tr:last-child td{border-bottom:0}
 .feed .t{flex:1;min-width:0;overflow-wrap:anywhere}
 .feed .w{color:var(--mute);font-size:12px;white-space:nowrap}
 .empty{color:var(--mute);text-align:center;padding:24px 8px}
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:600;background:var(--line);color:var(--ink)}
+.pill.live{background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent)}.pill.done{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.rx{background:var(--warn);color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700}
+.prog{height:4px;border-radius:2px;background:var(--line);margin-top:4px;overflow:hidden}.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s}
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>☕ Mini Café <span>Admin</span></h1>
+    <h1>💊 MediQuick <span>Ops</span></h1>
     <div class="status"><i class="dot" id="dot"></i><span id="upd">connecting…</span></div>
   </header>
   <section class="kpis" id="kpis"></section>
   <section class="grid">
-    <div class="card"><h2>Top items</h2><div id="top"></div></div>
+    <div class="card wide"><h2>Orders</h2><div class="tw" id="orders"></div></div>
+    <div class="card"><h2>Top medicines</h2><div id="top"></div></div>
     <div class="card"><h2>Live activity</h2><ul class="feed" id="feed"></ul></div>
     <div class="card wide"><h2>Customers</h2><div class="tw" id="users"></div></div>
   </section>
@@ -69,7 +74,10 @@ const inr = n => "₹" + Math.round(n).toLocaleString("en-IN");
 const ago = ts => { const s = Math.max(0, Date.now() / 1000 - ts);
   return s < 10 ? "just now" : s < 60 ? Math.floor(s) + "s ago" : s < 3600 ? Math.floor(s / 60) + "m ago"
     : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
-const ICONS = {message: "💬", order: "🛒", contact: "📇", location: "📍", payment: "⭐"};
+const ICONS = {message: "💬", order: "🧾", contact: "📇", location: "📍", payment: "⭐"};
+// seconds after the order: keep in sync with STATUS in bot.py / STEPS in index.html
+const STEPS = [[0, "Confirmed"], [15, "Packed"], [35, "Out for delivery"], [75, "Delivered"]];
+const statusOf = ts => { const s = Date.now() / 1000 - ts; return [STEPS.filter(([t]) => s >= t).pop()?.[1] || "Confirmed", Math.min(1, Math.max(0, s / 75))]; };
 let products = {}, seen = null, lastOk = 0;
 
 async function get(url) {
@@ -98,7 +106,7 @@ function describe(e) {
     case "order": {
       const it = itemsOf(e);
       const list = it.map(([id, q]) => `${esc(products[id]?.emoji || id)}×${esc(q)}`).join(" ");
-      return it.length ? `${n} ordered ${list} · <b>${inr(Number(e.total) || 0)}</b>` : `${n} sent an empty cart`;
+      return it.length ? `${n} ordered ${list} · <b>${inr(Number(e.total) || 0)}</b>${e.order_id ? ` <span class="m">${esc(e.order_id)} · ${esc(e.store || "")}</span>` : ""}` : `${n} sent an empty cart`;
     }
     case "contact": return `${n} shared contact <span class="m">${esc(e.phone)}</span>`;
     case "location": return `${n} shared location <span class="m">${esc(Number(e.lat).toFixed(4))}, ${esc(Number(e.lon).toFixed(4))}</span>`;
@@ -109,7 +117,8 @@ function describe(e) {
 
 function render(events) {
   const users = new Map(), sold = {};
-  let orders = 0, revenue = 0, qty = 0, pays = 0, stars = 0, refunds = 0;
+  let orders = 0, revenue = 0, qty = 0, rxOrders = 0, live = 0;
+  const orderRows = [];
   for (const e of events) {
     const key = e.user_id ?? e.name ?? "?";
     const u = users.get(key) || {e, orders: 0, spend: 0, last: 0};
@@ -122,8 +131,8 @@ function render(events) {
       orders++; u.orders++;
       const t = Number(e.total) || 0; revenue += t; u.spend += t;
       for (const [id, q] of it) { qty += Number(q); sold[id] = (sold[id] || 0) + Number(q); }
-    } else if (e.action === "payment") {
-      pays++; if (e.refunded) refunds++; else stars += Number(e.stars) || 0;
+      if (e.rx) rxOrders++;
+      if (e.order_id) { orderRows.push(e); if (statusOf(e.ts)[1] < 1) live++; }
     }
   }
   const kpi = (l, v, s, cls = "") => `<div class="card kpi ${cls}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
@@ -131,8 +140,17 @@ function render(events) {
     kpi("Revenue", inr(revenue), `${orders} order${orders === 1 ? "" : "s"}`, "hero") +
     kpi("Orders", orders, orders ? `avg ${inr(revenue / orders)}` : "—") +
     kpi("Items sold", qty, `${Object.keys(sold).length} product${Object.keys(sold).length === 1 ? "" : "s"}`) +
-    kpi("Customers", users.size, `${events.length} events`) +
-    kpi("Stars payments", pays, `⭐${stars} kept · ${refunds} refunded`);
+    kpi("In progress", live, live ? "being packed or delivered 🛵" : "all delivered") +
+    kpi("Rx orders", rxOrders, "prescription attached") +
+    kpi("Customers", users.size, `${events.length} events`);
+
+  $("orders").innerHTML = orderRows.length ? `<table><tr><th>Order</th><th>Customer</th><th>Medicines</th><th class="num">Total</th><th>Payment</th><th>Store</th><th>Phone</th><th>Status</th></tr>` +
+    orderRows.slice().reverse().slice(0, 30).map(e => { const [st, p] = statusOf(e.ts);
+      return `<tr><td><b>${esc(e.order_id)}</b>${e.rx ? ' <span class="rx">Rx</span>' : ""}<div class="m">${ago(e.ts)}</div></td><td>${esc(who(e))}</td>
+      <td>${itemsOf(e).map(([id, q]) => `${esc(products[id]?.name || id)} ×${esc(q)}`).join("<br>")}</td>
+      <td class="num"><b>${inr(Number(e.total) || 0)}</b></td><td class="m">GPay · unverified</td><td>${esc(e.store || "—")}</td><td class="m">${esc(e.phone || "—")}</td>
+      <td><span class="pill ${p >= 1 ? "done" : "live"}">${esc(st)}</span><div class="prog"><i style="width:${(p * 100).toFixed(0)}%"></i></div></td></tr>`; }).join("") +
+    `</table>` : `<div class="empty">No orders yet: tap 💊 Order medicines in the bot</div>`;
 
   const top = Object.entries(sold).sort((a, b) => b[1] - a[1]);
   const max = top[0]?.[1] || 1;
