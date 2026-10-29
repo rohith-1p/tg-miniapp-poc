@@ -463,7 +463,7 @@ function startTracking() {
 $("homeScreenBtn").onclick = () => tg.addToHomeScreen();
 
 // --- boot ---
-fetch("products.json").then(r => r.json()).then(p => {
+fetch("products.json", { cache: "no-cache" }).then(r => r.json()).then(p => {
   products = p;
   if (q.has("track")) { go("track"); return startTracking(); }
   const boot = () => { renderList(); updateButtons(); };

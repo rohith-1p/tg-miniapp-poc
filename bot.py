@@ -15,6 +15,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PRODUCTS = {p["id"]: p for p in json.load(open(os.path.join(HERE, "products.json")))}
+VERSION = str(int(time.time()))  # appended to the app URL so Telegram's webview cache never serves an old page
 FREE_DELIVERY_FROM, DELIVERY_FEE = 199, 25  # keep in sync with index.html
 # seconds after the order: keep in sync with STEPS in index.html (demo time, compressed)
 STATUS = [(15, "📦 Order {id} packed at {store}"), (35, "🛵 Order {id} is out for delivery"),
@@ -65,7 +66,7 @@ def order(chat, event, data):
     log({**event, "action": "order", "order_id": oid, "items": items, "total": total, "pay": "gpay",
          "phone": data.get("phone"), "lat": data.get("lat"), "lon": data.get("lon"), "store": store,
          "rx": bool(data.get("rx"))})
-    track = f"{os.environ['WEBAPP_URL']}?track={oid[1:]}&t={int(time.time())}&store={urllib.parse.quote(store)}"
+    track = f"{os.environ['WEBAPP_URL']}?v={VERSION}&track={oid[1:]}&t={int(time.time())}&store={urllib.parse.quote(store)}"
     call("sendMessage", chat_id=chat,
          text=f"🧾 Order {oid} confirmed\n\n" + "\n".join(lines) + f"\n\nTotal: ₹{total}\n"
               "💳 Paid via GPay (UPI) · verification pending\n"
@@ -92,7 +93,7 @@ def handle(msg):
         log({**event, "action": "message", "text": msg.get("text")})
         call("sendMessage", chat_id=chat,
              text="💊 MediQuick: medicines delivered in minutes.\nTap below to order.",
-             reply_markup={"keyboard": [[{"text": "💊 Order medicines", "web_app": {"url": os.environ["WEBAPP_URL"]}}]],
+             reply_markup={"keyboard": [[{"text": "💊 Order medicines", "web_app": {"url": os.environ["WEBAPP_URL"] + "?v=" + VERSION}}]],
                            "resize_keyboard": True})
 
 
