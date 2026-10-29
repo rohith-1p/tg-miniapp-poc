@@ -1,19 +1,15 @@
-"""Telegram Mini App POC: serves index.html and runs the bot (long polling). Stdlib only.
+"""Telegram Mini App POC bot (long polling, stdlib only). The page is static on GitHub Pages.
 
-  BOT_TOKEN=123:abc WEBAPP_URL=https://<tunnel>.trycloudflare.com python3 bot.py
+  BOT_TOKEN=123:abc WEBAPP_URL=https://rohith-1p.github.io/tg-miniapp-poc/ python3 bot.py
   python3 bot.py test   # self-check
 """
 import json
 import os
 import sys
-import threading
 import urllib.request
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PRODUCTS = {p["id"]: p for p in json.load(open(os.path.join(HERE, "products.json")))}
-PORT = int(os.environ.get("PORT", 8080))
 
 
 def summarize(cart):
@@ -53,9 +49,7 @@ def handle(msg):
 
 
 def main():
-    server = ThreadingHTTPServer(("", PORT), partial(SimpleHTTPRequestHandler, directory=HERE))
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    print(f"serving on :{PORT}, bot polling…")
+    print("bot polling…")
     offset = 0
     while True:
         try:
