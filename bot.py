@@ -93,7 +93,8 @@ def handle(msg):
         log({**event, "action": "message", "text": msg.get("text")})
         call("sendMessage", chat_id=chat,
              text="💊 MediQuick: medicines delivered in minutes.\nTap below to order.",
-             reply_markup={"keyboard": [[{"text": "💊 Order medicines", "web_app": {"url": os.environ["WEBAPP_URL"] + "?v=" + VERSION}}]],
+             reply_markup={"keyboard": [[{"text": "💊 Order medicines", "web_app": {"url": os.environ["WEBAPP_URL"] + "?v=" + VERSION}}],
+                                        [{"text": "🧪 Mini Apps Lab: everything possible", "web_app": {"url": os.environ["WEBAPP_URL"] + "lab.html?v=" + VERSION}}]],
                            "resize_keyboard": True})
 
 
