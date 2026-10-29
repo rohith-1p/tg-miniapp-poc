@@ -471,6 +471,11 @@ fetch("products.json").then(r => r.json()).then(p => {
   cloud.getItems(["cart", "last_order"], (e, v) => {
     try { cart = JSON.parse(v?.cart || "{}") || {}; } catch { cart = {}; }
     try { lastOrder = JSON.parse(v?.last_order || "null"); } catch { lastOrder = null; }
+    // saved data may predate a menu change: keep only products that still exist
+    const known = o => Object.fromEntries(Object.entries(o || {}).filter(([id, n]) => byId(id) && Number.isInteger(n) && n > 0));
+    cart = known(cart);
+    lastOrder = Object.keys(known(lastOrder)).length ? known(lastOrder) : null;
+    saveCart();
     if (lastOrder) {
       $("reorderBtn").disabled = false;
       $("reorderText").textContent = Object.entries(lastOrder).map(([id, n]) => `${byId(id)?.name || id} ×${n}`).join(", ");
