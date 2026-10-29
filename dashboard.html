@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini Café Admin</title>
+<style>
+:root{--bg:#f4f1ec;--card:#fffdf9;--line:#e6dfd4;--ink:#231d16;--mute:#857a6c;--accent:#c2611f;--accent2:#e9a23b;--ok:#2f9e5b;--hl:#fff1d6}
+@media (prefers-color-scheme:dark){:root{--bg:#14110e;--card:#1d1915;--line:#2f2922;--ink:#f2ebe1;--mute:#9d9183;--accent:#f08a3e;--accent2:#f4c06a;--ok:#4cc77f;--hl:#3a2a17}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+h1{margin:0;font-size:22px;letter-spacing:-.02em}
+h1 span{color:var(--accent)}
+.status{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 2s infinite}
+.dot.off{background:#d0433a;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.kpi .l{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.kpi .v{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .s{color:var(--mute);font-size:12px}
+.kpi.hero{background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;color:#fff}
+.kpi.hero .l,.kpi.hero .s{color:#fff;opacity:.85}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid>.wide{grid-column:1/-1}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+h2{margin:0 0 12px;font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;margin-bottom:12px}
+.bar .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .q{color:var(--mute);font-variant-numeric:tabular-nums}
+.track{grid-column:1/-1;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s ease}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{text-align:left;color:var(--mute);font-weight:500;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.num{text-align:right}
+.m{color:var(--mute)}
+.feed{list-style:none;margin:0;padding:0;max-height:430px;overflow-y:auto}
+.feed li{display:flex;gap:10px;align-items:flex-start;padding:9px 8px;border-radius:10px;transition:background 1.5s ease}
+.feed li.new{background:var(--hl);transition:none}
+.ic{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--bg);border:1px solid var(--line)}
+.feed .t{flex:1;min-width:0;overflow-wrap:anywhere}
+.feed .w{color:var(--mute);font-size:12px;white-space:nowrap}
+.empty{color:var(--mute);text-align:center;padding:24px 8px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>☕ Mini Café <span>Admin</span></h1>
+    <div class="status"><i class="dot" id="dot"></i><span id="upd">connecting…</span></div>
+  </header>
+  <section class="kpis" id="kpis"></section>
+  <section class="grid">
+    <div class="card"><h2>Top items</h2><div id="top"></div></div>
+    <div class="card"><h2>Live activity</h2><ul class="feed" id="feed"></ul></div>
+    <div class="card wide"><h2>Customers</h2><div class="tw" id="users"></div></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const inr = n => "₹" + Math.round(n).toLocaleString("en-IN");
+const ago = ts => { const s = Math.max(0, Date.now() / 1000 - ts);
+  return s < 10 ? "just now" : s < 60 ? Math.floor(s) + "s ago" : s < 3600 ? Math.floor(s / 60) + "m ago"
+    : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
+const ICONS = {message: "💬", order: "🛒", contact: "📇", location: "📍", payment: "⭐"};
+let products = {}, seen = null, lastOk = 0;
+
+async function get(url) {
+  const r = await fetch(url, {cache: "no-store"});
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(r.status);
+  return r.text();
+}
+
+function parse(text) {
+  const out = [];
+  for (const line of (text || "").split("\n")) {
+    if (!line.trim()) continue;
+    try { const e = JSON.parse(line); if (e && typeof e === "object") out.push(e); } catch {}  // skip torn/partial lines
+  }
+  return out;
+}
+
+const itemsOf = e => (e.items && typeof e.items === "object") ? Object.entries(e.items).filter(([, q]) => Number(q) > 0) : [];
+const who = e => e.name || (e.username ? "@" + e.username : "User " + (e.user_id ?? "?"));
+
+function describe(e) {
+  const n = `<b>${esc(who(e))}</b>`;
+  switch (e.action) {
+    case "message": return `${n} said “${esc(e.text ?? "")}”`;
+    case "order": {
+      const it = itemsOf(e);
+      const list = it.map(([id, q]) => `${esc(products[id]?.emoji || id)}×${esc(q)}`).join(" ");
+      return it.length ? `${n} ordered ${list} · <b>${inr(Number(e.total) || 0)}</b>` : `${n} sent an empty cart`;
+    }
+    case "contact": return `${n} shared contact <span class="m">${esc(e.phone)}</span>`;
+    case "location": return `${n} shared location <span class="m">${esc(Number(e.lat).toFixed(4))}, ${esc(Number(e.lon).toFixed(4))}</span>`;
+    case "payment": return `${n} paid ⭐${esc(e.stars)}${e.refunded ? ' <span class="m">(refunded)</span>' : ""}`;
+    default: return `${n} · ${esc(e.action ?? "event")}`;
+  }
+}
+
+function render(events) {
+  const users = new Map(), sold = {};
+  let orders = 0, revenue = 0, qty = 0, pays = 0, stars = 0, refunds = 0;
+  for (const e of events) {
+    const key = e.user_id ?? e.name ?? "?";
+    const u = users.get(key) || {e, orders: 0, spend: 0, last: 0};
+    u.e = {...u.e, ...Object.fromEntries(["name", "username", "lang"].filter(k => e[k] != null).map(k => [k, e[k]]))};
+    u.last = Math.max(u.last, Number(e.ts) || 0);
+    users.set(key, u);
+    if (e.action === "order") {
+      const it = itemsOf(e);
+      if (!it.length) continue;
+      orders++; u.orders++;
+      const t = Number(e.total) || 0; revenue += t; u.spend += t;
+      for (const [id, q] of it) { qty += Number(q); sold[id] = (sold[id] || 0) + Number(q); }
+    } else if (e.action === "payment") {
+      pays++; if (e.refunded) refunds++; else stars += Number(e.stars) || 0;
+    }
+  }
+  const kpi = (l, v, s, cls = "") => `<div class="card kpi ${cls}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  $("kpis").innerHTML =
+    kpi("Revenue", inr(revenue), `${orders} order${orders === 1 ? "" : "s"}`, "hero") +
+    kpi("Orders", orders, orders ? `avg ${inr(revenue / orders)}` : "—") +
+    kpi("Items sold", qty, `${Object.keys(sold).length} product${Object.keys(sold).length === 1 ? "" : "s"}`) +
+    kpi("Customers", users.size, `${events.length} events`) +
+    kpi("Stars payments", pays, `⭐${stars} kept · ${refunds} refunded`);
+
+  const top = Object.entries(sold).sort((a, b) => b[1] - a[1]);
+  const max = top[0]?.[1] || 1;
+  $("top").innerHTML = top.length ? top.map(([id, q]) => {
+    const p = products[id] || {emoji: "❔", name: id, price: 0};
+    return `<div class="bar"><span class="n">${esc(p.emoji)} ${esc(p.name)}</span><span class="q">×${q} · ${inr(q * (Number(p.price) || 0))}</span>
+      <div class="track"><div class="fill" style="width:${(q / max * 100).toFixed(1)}%"></div></div></div>`;
+  }).join("") : `<div class="empty">No orders yet</div>`;
+
+  const rows = [...users.values()].sort((a, b) => b.last - a.last);
+  $("users").innerHTML = rows.length ? `<table><tr><th>Name</th><th>Username</th><th>Lang</th><th class="num">Orders</th><th class="num">Spend</th><th class="num">Last seen</th></tr>` +
+    rows.map(u => `<tr><td><b>${esc(u.e.name || "—")}</b></td><td class="m">${u.e.username ? "@" + esc(u.e.username) : "—"}</td>
+      <td class="m">${esc(u.e.lang || "—")}</td><td class="num">${u.orders}</td><td class="num">${inr(u.spend)}</td><td class="num m">${ago(u.last)}</td></tr>`).join("") +
+    `</table>` : `<div class="empty">No customers yet — open the bot and say hi 👋</div>`;
+
+  // file is append-only, so line index is a stable id
+  const keyed = events.map((e, i) => [i + ":" + e.ts + ":" + e.action, e]).reverse().slice(0, 60);
+  const fresh = seen ? keyed.filter(([k]) => !seen.has(k)).map(([k]) => k) : [];
+  seen = new Set(keyed.map(([k]) => k));
+  $("feed").innerHTML = keyed.length ? keyed.map(([k, e]) =>
+    `<li data-k="${esc(k)}"><span class="ic">${ICONS[e.action] || "•"}</span><span class="t">${describe(e)}</span><span class="w">${ago(e.ts)}</span></li>`).join("")
+    : `<li class="empty" style="display:block">Waiting for activity…</li>`;
+  for (const li of $("feed").children) if (fresh.includes(li.dataset.k)) {
+    li.classList.add("new"); requestAnimationFrame(() => requestAnimationFrame(() => li.classList.remove("new")));
+  }
+}
+
+async function tick() {
+  try {
+    if (!Object.keys(products).length) {
+      const list = JSON.parse(await get("products.json") || "[]");
+      products = Object.fromEntries(list.map(p => [p.id, p]));
+    }
+    render(parse(await get("events.jsonl")));
+    lastOk = Date.now(); $("dot").classList.remove("off");
+  } catch (err) {
+    $("dot").classList.add("off");
+  }
+  $("upd").textContent = lastOk ? "Live · updated " + new Date(lastOk).toLocaleTimeString() : "offline";
+}
+tick(); setInterval(tick, 3000);
+</script>
+</body>
+</html>

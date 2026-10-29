@@ -2,75 +2,373 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mini Café</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   /* Telegram injects --tg-theme-* so the app matches the user's light/dark theme */
-  body { margin: 0; padding: 16px; font: 16px system-ui, sans-serif;
-         background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); }
-  .hint { color: var(--tg-theme-hint-color, #888); font-size: 14px; }
-  .item { display: flex; align-items: center; gap: 12px; padding: 12px 0;
-          border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #eee); }
-  .emoji { font-size: 32px; }
-  .grow { flex: 1; }
-  button { width: 36px; height: 36px; border: 0; border-radius: 18px; font-size: 20px;
-           background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); }
-  .qty { min-width: 20px; text-align: center; }
+  :root { --bg: var(--tg-theme-bg-color, #fff); --fg: var(--tg-theme-text-color, #111);
+          --hint: var(--tg-theme-hint-color, #888); --card: var(--tg-theme-secondary-bg-color, #f2f2f5);
+          --btn: var(--tg-theme-button-color, #2481cc); --btn-fg: var(--tg-theme-button-text-color, #fff);
+          --accent: var(--tg-theme-accent-text-color, #2481cc); }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px 16px 120px; font: 16px system-ui, sans-serif; background: var(--bg); color: var(--fg);
+         overflow-x: hidden; }
+  .hint { color: var(--hint); font-size: 13px; }
+  .hero { perspective: 600px; margin-bottom: 14px; }
+  .card3d { padding: 18px; border-radius: 18px; color: #fff; transition: transform .08s linear;
+            background: linear-gradient(135deg, #6a5cff, #ff5c8a 60%, #ffb35c); box-shadow: 0 10px 30px #0003; }
+  .card3d h2 { margin: 0 0 4px; } .card3d .hint { color: #fffc; }
+  nav { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; }
+  nav button { flex: none; padding: 8px 14px; border: 0; border-radius: 20px; background: var(--card); color: var(--fg); font-size: 14px; }
+  nav button.on { background: var(--btn); color: var(--btn-fg); }
+  .item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--card); }
+  .emoji { font-size: 32px; } .grow { flex: 1; } .qty { min-width: 20px; text-align: center; }
+  .round { width: 36px; height: 36px; border: 0; border-radius: 18px; font-size: 20px; background: var(--btn); color: var(--btn-fg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .grid button { padding: 14px 8px; border: 0; border-radius: 14px; background: var(--card); color: var(--fg); font-size: 14px; text-align: left; }
+  .grid button b { display: block; font-size: 22px; margin-bottom: 4px; }
+  h3 { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--hint); }
+  .caps { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cap { font-size: 12px; padding: 4px 8px; border-radius: 10px; background: var(--card); color: var(--hint); }
+  .cap.ok { background: #2ecc7133; color: var(--fg); }
+  #log { margin-top: 16px; font: 12px ui-monospace, monospace; background: var(--card); border-radius: 12px; padding: 10px; max-height: 180px; overflow-y: auto; }
+  #log div { padding: 2px 0; }
+  .confetti { position: fixed; top: -40px; font-size: 26px; pointer-events: none; animation: fall 1.8s ease-in forwards; z-index: 9; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(540deg); opacity: .6; } }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<h2 id="hello">Mini Café</h2>
-<p class="hint" id="info"></p>
-<div id="list"></div>
+<div class="hero"><div class="card3d" id="card">
+  <h2 id="hello">Mini Café</h2>
+  <div class="hint" id="info"></div>
+  <div class="hint" id="visits"></div>
+</div></div>
+
+<nav id="tabs">
+  <button data-tab="shop" class="on">🛒 Shop</button>
+  <button data-tab="device">📱 Device</button>
+  <button data-tab="ui">🎨 UI</button>
+  <button data-tab="data">🔐 Data</button>
+  <button data-tab="pay">⭐ Pay</button>
+</nav>
+
+<section id="shop"><div id="list"></div>
+  <p class="hint">Cart is saved in Telegram CloudStorage, so it survives closing the app and syncs across your devices.</p></section>
+
+<section id="device" hidden><div class="grid">
+  <button data-act="drumroll"><b>📳</b>Haptic drumroll</button>
+  <button data-act="qr"><b>📷</b>Scan QR code</button>
+  <button data-act="location"><b>📍</b>Get location</button>
+  <button data-act="biometric"><b>🫆</b>Biometric unlock</button>
+  <button data-act="tilt"><b>🌀</b>Tilt the card</button>
+  <button data-act="shake"><b>🎉</b>Shake for confetti</button>
+  <button data-act="fullscreen"><b>⛶</b>Fullscreen</button>
+  <button data-act="orientation"><b>🔒</b>Lock orientation</button>
+  <button data-act="homescreen"><b>🏠</b>Add to home screen</button>
+</div></section>
+
+<section id="ui" hidden><div class="grid">
+  <button data-act="popup"><b>💬</b>Native popup</button>
+  <button data-act="confirm"><b>❓</b>Confirm dialog</button>
+  <button data-act="colors"><b>🎨</b>Recolour Telegram</button>
+  <button data-act="closing"><b>🚪</b>Confirm on close</button>
+  <button data-act="swipes"><b>👆</b>Toggle swipe-to-close</button>
+  <button data-act="secondary"><b>➕</b>Second bottom button</button>
+  <button data-act="link"><b>🌐</b>Open link (Instant View)</button>
+  <button data-act="tglink"><b>✈️</b>Open Telegram link</button>
+  <button data-act="share"><b>📤</b>Share this bot</button>
+  <button data-act="close"><b>✖️</b>Close app</button>
+</div></section>
+
+<section id="data" hidden><div class="grid">
+  <button data-act="contact"><b>📇</b>Share phone number</button>
+  <button data-act="write"><b>✉️</b>Allow bot messages</button>
+  <button data-act="download"><b>⬇️</b>Download menu file</button>
+  <button data-act="whoami"><b>🪪</b>Signed launch data</button>
+</div></section>
+
+<section id="pay" hidden><div class="grid">
+  <button data-act="stars"><b>⭐</b>Pay 1 Star (auto-refunded)</button>
+</div><p class="hint">Native Telegram Stars checkout. The bot refunds the Star immediately, so the demo is free.</p></section>
+
+<h3>Supported on this client</h3>
+<div class="caps" id="caps"></div>
+<div id="log"></div>
+
 <script>
 const tg = Telegram.WebApp;
 tg.ready();
 tg.expand();
+const $ = id => document.getElementById(id);
 
+function log(ok, msg) {
+  const d = document.createElement("div");
+  d.textContent = `${ok ? "✓" : "✗"} ${msg}`;
+  $("log").prepend(d);
+}
+function confetti() {
+  for (let i = 0; i < 40; i++) {
+    const s = document.createElement("span");
+    s.className = "confetti";
+    s.textContent = ["🎉", "☕", "⭐", "✨", "🥟"][i % 5];
+    s.style.left = Math.random() * 100 + "vw";
+    s.style.animationDelay = Math.random() * .6 + "s";
+    document.body.append(s);
+    setTimeout(() => s.remove(), 2600);
+  }
+}
+const has = (min, f) => tg.isVersionAtLeast(min) && !!f;
+
+// --- header info ---
 const user = tg.initDataUnsafe.user;
-if (user) document.getElementById("hello").textContent = `Hi, ${user.first_name} 👋`;
-document.getElementById("info").textContent =
-  `Platform: ${tg.platform} · Theme: ${tg.colorScheme} · v${tg.version}`;
+if (user) $("hello").textContent = `Hi, ${user.first_name} 👋${user.is_premium ? " ⭐" : ""}`;
+const info = () => $("info").textContent =
+  `${tg.platform} · Bot API ${tg.version} · ${tg.colorScheme} theme · ${Math.round(tg.viewportHeight)}px tall`;
+info();
+tg.onEvent("viewportChanged", info);
+tg.onEvent("themeChanged", () => { info(); log(true, `theme changed → ${tg.colorScheme}`); });
 
-const cart = {};
-let products = [];
+// --- capability matrix: feature-detect plus minimum Bot API version ---
+const CAPS = [
+  ["Main button", "6.0", tg.MainButton], ["Back button", "6.1", tg.BackButton], ["Haptics", "6.1", tg.HapticFeedback],
+  ["Popups", "6.2", tg.showPopup], ["QR scanner", "6.4", tg.showScanQrPopup], ["CloudStorage", "6.9", tg.CloudStorage],
+  ["Contact", "6.9", tg.requestContact], ["Settings button", "7.0", tg.SettingsButton], ["Biometrics", "7.2", tg.BiometricManager],
+  ["Swipe control", "7.7", tg.disableVerticalSwipes], ["Secondary button", "7.10", tg.SecondaryButton],
+  ["Fullscreen", "8.0", tg.requestFullscreen], ["Location", "8.0", tg.LocationManager], ["Motion sensors", "8.0", tg.DeviceOrientation],
+  ["Home screen", "8.0", tg.addToHomeScreen], ["File download", "8.0", tg.downloadFile], ["Orientation lock", "8.0", tg.lockOrientation],
+];
+$("caps").replaceChildren(...CAPS.map(([name, min, f]) => {
+  const s = document.createElement("span");
+  s.className = "cap" + (has(min, f) ? " ok" : "");
+  s.textContent = name;
+  s.title = "Bot API " + min + "+";
+  return s;
+}));
 
+// --- CloudStorage: visit counter + persistent cart ---
+const cloud = has("6.9", tg.CloudStorage) ? tg.CloudStorage : null;
+cloud?.getItem("visits", (e, v) => {
+  const n = (parseInt(v) || 0) + 1;
+  cloud.setItem("visits", String(n));
+  $("visits").textContent = `Visit #${n} · counted in Telegram CloudStorage`;
+});
+
+// --- shop ---
+let cart = {}, products = [];
 function render() {
-  const list = document.getElementById("list");
-  list.replaceChildren(...products.map(p => {
+  $("list").replaceChildren(...products.map(p => {
     const row = document.createElement("div");
     row.className = "item";
     row.innerHTML = `<span class="emoji">${p.emoji}</span>
       <span class="grow">${p.name}<br><span class="hint">₹${p.price}</span></span>
-      <button aria-label="Remove ${p.name}">−</button>
+      <button class="round" aria-label="Remove ${p.name}">−</button>
       <span class="qty">${cart[p.id] || 0}</span>
-      <button aria-label="Add ${p.name}">+</button>`;
+      <button class="round" aria-label="Add ${p.name}">+</button>`;
     const [minus, plus] = row.querySelectorAll("button");
     minus.onclick = () => change(p.id, -1);
     plus.onclick = () => change(p.id, +1);
     return row;
   }));
-
+  updateMain();
+}
+function updateMain() {
   const total = products.reduce((s, p) => s + p.price * (cart[p.id] || 0), 0);
-  if (total) tg.MainButton.setText(`Order · ₹${total}`).show();
+  if (total && current === "shop") tg.MainButton.setParams({ text: `Order · ₹${total}`, has_shine_effect: true }).show();
   else tg.MainButton.hide();
 }
-
 function change(id, d) {
   cart[id] = Math.max(0, (cart[id] || 0) + d);
   if (!cart[id]) delete cart[id];
-  tg.HapticFeedback.impactOccurred("light");
+  tg.HapticFeedback.selectionChanged();
+  cloud?.setItem("cart", JSON.stringify(cart));
   render();
 }
-
-// sendData hands the cart to the bot and closes the app (works when opened from a keyboard button)
+// sendData hands the cart to the bot and closes the app (works when opened from the keyboard button)
 tg.MainButton.onClick(() => {
   tg.HapticFeedback.notificationOccurred("success");
+  cloud?.removeItem("cart");
   tg.sendData(JSON.stringify(cart));
 });
+fetch("products.json").then(r => r.json()).then(p => {
+  products = p;
+  if (!cloud) return render();
+  cloud.getItem("cart", (e, v) => {
+    try { cart = JSON.parse(v) || {}; } catch { cart = {}; }
+    if (Object.keys(cart).length) log(true, "cart restored from CloudStorage");
+    render();
+  });
+});
 
-fetch("products.json").then(r => r.json()).then(p => { products = p; render(); });
+// --- tabs + BackButton ---
+let current = "shop";
+function show(tab) {
+  current = tab;
+  for (const b of $("tabs").children) b.classList.toggle("on", b.dataset.tab === tab);
+  for (const s of document.querySelectorAll("section")) s.hidden = s.id !== tab;
+  tab === "shop" ? tg.BackButton.hide() : tg.BackButton.show();
+  updateMain();
+}
+$("tabs").onclick = e => e.target.dataset.tab && show(e.target.dataset.tab);
+tg.BackButton.onClick(() => show("shop"));
+if (has("7.0", tg.SettingsButton)) {
+  tg.SettingsButton.show();
+  tg.SettingsButton.onClick(() => tg.showAlert("Mini Café demo · settings would live here"));
+}
+
+// --- device & UI actions ---
+const invoice = new URLSearchParams(location.search).get("invoice");
+let tilting = false, shaking = false, colorIdx = 0;
+const COLORS = ["#6a5cff", "#ff5c8a", "#1fb57a", "#ffb35c", null];
+
+const ACTIONS = {
+  drumroll() {
+    ["light", "medium", "heavy", "rigid", "soft"].forEach((s, i) => setTimeout(() => tg.HapticFeedback.impactOccurred(s), i * 180));
+    setTimeout(() => tg.HapticFeedback.notificationOccurred("success"), 1000);
+    log(true, "haptics: 5 impacts + success");
+  },
+  qr() {
+    tg.showScanQrPopup({ text: "Point at any QR code" }, text => {
+      tg.HapticFeedback.notificationOccurred("success");
+      log(true, "QR: " + text);
+      tg.showAlert("Scanned:\n" + text);
+      return true;
+    });
+  },
+  location() {
+    const L = tg.LocationManager;
+    L.init(() => {
+      if (!L.isLocationAvailable) return log(false, "location not available on this device");
+      L.getLocation(d => {
+        if (!d) return log(false, "location denied — opening settings"), L.openSettings();
+        log(true, `location: ${d.latitude.toFixed(4)}, ${d.longitude.toFixed(4)}`);
+        tg.showConfirm(`You're at ${d.latitude.toFixed(4)}, ${d.longitude.toFixed(4)}. Open map?`,
+          ok => ok && tg.openLink(`https://www.openstreetmap.org/?mlat=${d.latitude}&mlon=${d.longitude}#map=16/${d.latitude}/${d.longitude}`));
+      });
+    });
+  },
+  biometric() {
+    const B = tg.BiometricManager;
+    B.init(() => {
+      if (!B.isBiometricAvailable) return log(false, "no biometrics on this device");
+      const auth = () => B.authenticate({ reason: "Unlock the secret menu" }, ok => {
+        log(ok, ok ? `${B.biometricType} verified` : "biometric failed");
+        if (ok) { confetti(); tg.showAlert("🔓 Secret menu unlocked: free chai for life (not really)"); }
+      });
+      if (B.isAccessGranted) auth();
+      else B.requestAccess({ reason: "Mini Café uses biometrics to unlock the secret menu" }, g => g ? auth() : log(false, "biometric access denied"));
+    });
+  },
+  tilt() {
+    tilting = !tilting;
+    if (tilting) tg.DeviceOrientation.start({ refresh_rate: 50 }, ok => log(ok, ok ? "tilt your phone — the card follows" : "orientation sensor unavailable"));
+    else { tg.DeviceOrientation.stop(); $("card").style.transform = ""; log(true, "tilt stopped"); }
+  },
+  shake() {
+    shaking = !shaking;
+    if (shaking) tg.Accelerometer.start({ refresh_rate: 60 }, ok => log(ok, ok ? "shake your phone!" : "accelerometer unavailable"));
+    else { tg.Accelerometer.stop(); log(true, "shake detection stopped"); }
+  },
+  fullscreen() { tg.isFullscreen ? tg.exitFullscreen() : tg.requestFullscreen(); },
+  orientation() {
+    tg.isOrientationLocked ? tg.unlockOrientation() : tg.lockOrientation();
+    log(true, "orientation " + (tg.isOrientationLocked ? "locked" : "unlocked"));
+  },
+  homescreen() {
+    tg.checkHomeScreenStatus(s => {
+      log(true, "home screen status: " + s);
+      if (s === "missed") tg.addToHomeScreen();
+      else if (s === "unsupported") log(false, "home screen icons unsupported here");
+    });
+  },
+  popup() {
+    tg.showPopup({ title: "Mini Café", message: "How do you take your chai?",
+      buttons: [{ id: "strong", type: "default", text: "Strong 💪" }, { id: "sweet", type: "default", text: "Extra sweet 🍯" }, { type: "cancel" }] },
+      id => log(true, "popup choice: " + (id || "cancelled")));
+  },
+  confirm() { tg.showConfirm("Order the usual?", ok => log(true, "confirm: " + ok)); },
+  colors() {
+    const c = COLORS[colorIdx++ % COLORS.length];
+    tg.setHeaderColor(c || "bg_color");
+    tg.setBackgroundColor(c || "bg_color");
+    if (tg.setBottomBarColor) tg.setBottomBarColor(c || "bottom_bar_bg_color");
+    document.body.style.background = c || "";
+    log(true, "Telegram chrome colour → " + (c || "theme default"));
+  },
+  closing() {
+    tg.isClosingConfirmationEnabled ? tg.disableClosingConfirmation() : tg.enableClosingConfirmation();
+    log(true, "confirm-on-close " + (tg.isClosingConfirmationEnabled ? "ON — try closing" : "off"));
+  },
+  swipes() {
+    tg.isVerticalSwipesEnabled ? tg.disableVerticalSwipes() : tg.enableVerticalSwipes();
+    log(true, "swipe-down-to-close " + (tg.isVerticalSwipesEnabled ? "on" : "OFF"));
+  },
+  secondary() {
+    const S = tg.SecondaryButton;
+    if (S.isVisible) return S.hide();
+    S.setParams({ text: "Clear cart", position: "left" }).show();
+    log(true, "secondary button shown next to the main one");
+  },
+  link() { tg.openLink("https://core.telegram.org/bots/webapps", { try_instant_view: true }); },
+  tglink() { tg.openTelegramLink("https://t.me/telegram"); },
+  share() {
+    tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent("https://t.me/Teleminiapppbot") +
+      "&text=" + encodeURIComponent("Try this Telegram Mini App demo ☕"));
+  },
+  close() { tg.showConfirm("Close the Mini App?", ok => ok && tg.close()); },
+  contact() {
+    tg.requestContact((ok, r) => log(ok, ok ? "phone shared: " + (r?.responseUnsafe?.contact?.phone_number || "sent to bot") : "contact declined"));
+  },
+  write() { tg.requestWriteAccess(ok => log(ok, ok ? "bot may now message you" : "write access declined")); },
+  download() {
+    tg.downloadFile({ url: new URL("products.json", location.href).href, file_name: "mini-cafe-menu.json" },
+      ok => log(ok, ok ? "download started" : "download cancelled"));
+  },
+  whoami() {
+    const d = tg.initDataUnsafe;
+    log(!!tg.initData, `initData: ${tg.initData.length} bytes, signed hash ${d.hash ? "present" : "missing"}, auth_date ${d.auth_date || "-"}`);
+    tg.showAlert(`Telegram signs this launch data. A backend can verify it with the bot token to trust who the user is.\n\nuser id: ${user?.id ?? "-"}\nlanguage: ${user?.language_code ?? "-"}`);
+  },
+  stars() {
+    if (!invoice) return log(false, "no invoice link (bot not passing one)");
+    tg.openInvoice(invoice, status => {
+      log(status === "paid", "payment: " + status);
+      if (status === "paid") { tg.HapticFeedback.notificationOccurred("success"); confetti(); }
+    });
+  },
+};
+tg.SecondaryButton?.onClick(() => {
+  cart = {};
+  cloud?.removeItem("cart");
+  render();
+  log(true, "cart cleared");
+});
+
+tg.onEvent("deviceOrientationChanged", () => {
+  const D = tg.DeviceOrientation, clamp = v => Math.max(-.6, Math.min(.6, v || 0));
+  $("card").style.transform = `rotateX(${clamp(D.beta) * -1}rad) rotateY(${clamp(D.gamma)}rad)`;
+});
+let lastShake = 0;
+tg.onEvent("accelerometerChanged", () => {
+  const A = tg.Accelerometer, g = Math.hypot(A.x, A.y, A.z);
+  if (g > 25 && Date.now() - lastShake > 1500) {
+    lastShake = Date.now();
+    tg.HapticFeedback.impactOccurred("heavy");
+    confetti();
+    log(true, "shake detected!");
+  }
+});
+tg.onEvent("fullscreenChanged", () => log(true, "fullscreen " + (tg.isFullscreen ? "on" : "off")));
+tg.onEvent("fullscreenFailed", e => log(false, "fullscreen failed: " + e.error));
+tg.onEvent("qrTextReceived", () => {});
+
+document.body.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  tg.HapticFeedback.impactOccurred("light");
+  try { ACTIONS[b.dataset.act](); }
+  catch (err) { log(false, `${b.dataset.act}: ${err.message}`); }
+});
 </script>
 </body>
-</html>
