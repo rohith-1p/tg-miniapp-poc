@@ -225,7 +225,8 @@ function celebrate(title, then) {
 const rupees = n => "₹" + n;
 
 // --- who is ordering: Telegram tells us, no sign-up ---
-const user = tg.initDataUnsafe.user;
+// keyboard-button launches carry no initData, so the bot passes the first name in the URL as a fallback
+const user = tg.initDataUnsafe.user || (q.get("name") ? { first_name: q.get("name").slice(0, 40) } : null);
 if (user) {
   $("hello").textContent = `Hi, ${user.first_name} 👋`;
   if (user.photo_url) { const img = new Image(); img.src = user.photo_url; img.alt = ""; $("avatar").replaceChildren(img); }
@@ -443,7 +444,7 @@ let mainAction = null;
 function updateButtons() {
   const M = tg.MainButton, S = tg.SecondaryButton;
   S?.hide();
-  if (view === "home" && count()) { M.setParams({ text: `View cart · ${count()} item${count() > 1 ? "s" : ""} · ${rupees(total())}`, has_shine_effect: false }).show(); mainAction = () => go("checkout"); }
+  if (view === "home" && count()) { M.setParams({ text: `View cart · ${count()} item${count() > 1 ? "s" : ""} · ${rupees(subtotal())}`, has_shine_effect: false }).show(); mainAction = () => go("checkout"); }
   else if (view === "checkout") { const [text, fn] = nextStep(); M.setParams({ text, has_shine_effect: fn === pay }).show(); mainAction = fn; }
   else if (view === "paying") {
     M.setParams({ text: "✅ I've paid · Place order", has_shine_effect: true }).show(); mainAction = placeOrder;

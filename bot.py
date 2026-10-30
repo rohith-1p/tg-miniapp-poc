@@ -91,10 +91,11 @@ def handle(msg):
         log({**event, "action": "contact", "phone": msg["contact"].get("phone_number")})
     else:
         log({**event, "action": "message", "text": msg.get("text")})
+        q = f"?v={VERSION}&name={urllib.parse.quote(u.get('first_name') or '')}"
         call("sendMessage", chat_id=chat,
              text="💊 MediQuick: medicines delivered in minutes.\nTap below to order.",
-             reply_markup={"keyboard": [[{"text": "💊 Order medicines", "web_app": {"url": os.environ["WEBAPP_URL"] + "?v=" + VERSION}}],
-                                        [{"text": "🧪 Mini Apps Lab: everything possible", "web_app": {"url": os.environ["WEBAPP_URL"] + "lab.html?v=" + VERSION}}]],
+             reply_markup={"keyboard": [[{"text": "💊 Order medicines", "web_app": {"url": os.environ["WEBAPP_URL"] + q}}],
+                                        [{"text": "🧪 Mini Apps Lab: everything possible", "web_app": {"url": os.environ["WEBAPP_URL"] + "lab.html" + q}}]],
                            "resize_keyboard": True})
 
 

@@ -200,7 +200,7 @@ function celebrate(title, then) {
 }
 
 // --- hero ---
-const user = tg.initDataUnsafe.user;
+const user = tg.initDataUnsafe.user || (new URLSearchParams(location.search).get("name") ? { first_name: new URLSearchParams(location.search).get("name").slice(0, 40) } : null);
 if (user) {
   $("hello").textContent = `Hi, ${user.first_name}${user.is_premium ? " ⭐" : ""}`;
   if (user.photo_url) { const img = new Image(); img.src = user.photo_url; img.alt = ""; $("avatar").replaceChildren(img); }
